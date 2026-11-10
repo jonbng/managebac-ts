@@ -1,0 +1,1 @@
+{"version":3,"file":"observability.d.ts","sourceRoot":"","sources":["../../src/internal/observability.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,cAAc,EAAE,iBAAiB,EAAE,MAAM,aAAa,CAAC;AAErE,MAAM,MAAM,SAAS,GAAG,CAAC,KAAK,EAAE,cAAc,KAAK,IAAI,CAAC;AAExD,wBAAgB,aAAa,CAAC,QAAQ,EAAE,iBAAiB,GAAG,SAAS,GAAG,SAAS,CAShF"}

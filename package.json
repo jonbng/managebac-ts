@@ -1,0 +1,54 @@
+{
+  "name": "managebac-js",
+  "version": "0.1.0",
+  "description": "A resilient, typed JavaScript client for student-facing ManageBac data.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "sideEffects": false,
+  "packageManager": "bun@1.4.2",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:tui": "tsc -p examples/homework-tui/tsconfig.json --noEmit",
+    "test": "bun test",
+    "test:integration": "bun test test/integration",
+    "example": "bun run examples/upcoming-homework.ts",
+    "example:tui": "bun run examples/homework-tui/index.tsx",
+    "prepack": "bun run build"
+  },
+  "engines": {
+    "node": ">=20.18.1",
+    "bun": ">=1.3"
+  },
+  "keywords": [
+    "managebac",
+    "scraper",
+    "homework"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "tough-cookie": "^6.0.0"
+  },
+  "devDependencies": {
+    "@opentui/core": "^0.5.12",
+    "@opentui/react": "^0.5.12",
+    "@types/bun": "^1.2.23",
+    "@types/react": "^19.2.0",
+    "react": "^19.2.0",
+    "typescript": "^5.9.2"
+  }
+}

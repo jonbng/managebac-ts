@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
+    "noEmit": true
+  },
+  "include": ["./*.ts", "./*.tsx", "../../src/**/*.ts"]
+}
