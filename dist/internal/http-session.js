@@ -59,6 +59,7 @@ export class HttpSession {
     #rateLimiter;
     #emit;
     #responseContexts = new WeakMap();
+    #ready;
     #nextRequestId = 1;
     constructor(options) {
         if (options.fetch !== undefined && typeof options.fetch !== "function") {
@@ -76,6 +77,24 @@ export class HttpSession {
             : options.retry?.statuses ?? DEFAULT_RETRYABLE_STATUSES);
         this.#rateLimiter = options.rateLimiter;
         this.#emit = options.emit;
+        this.#ready = options.session ? this.#loadSession(options.session) : Promise.resolve();
+    }
+    async exportSession() {
+        await this.#ready;
+        const serialized = await this.#jar.serialize();
+        if (!serialized || !Array.isArray(serialized.cookies)) {
+            throw new UnexpectedResponseError("The in-memory session cookie jar could not be serialized.");
+        }
+        return serialized;
+    }
+    async #loadSession(serialized) {
+        try {
+            const deserialize = CookieJar.deserialize;
+            this.#jar = await deserialize(serialized);
+        }
+        catch (cause) {
+            throw new UnexpectedResponseError("The stored ManageBac session could not be restored.", { cause });
+        }
     }
     async readText(response) {
         try {
@@ -89,6 +108,7 @@ export class HttpSession {
         }
     }
     async request(path, init = {}) {
+        await this.#ready;
         const { body: _initialBody, headers: _initialHeaders, method: _initialMethod, signal: _initialSignal, ...sharedInit } = init;
         let url = assertSameOrigin(this.#baseUrl, path);
         let method = (init.method ?? "GET").toUpperCase();

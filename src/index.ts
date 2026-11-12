@@ -54,6 +54,7 @@ export type {
   ISODateTime,
   ManageBacClientOptions,
   ManageBacClass,
+  SerializedCookieJar,
   ManageBacSource,
   ManageBacEvent,
   ManageBacObserver,

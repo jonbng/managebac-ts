@@ -68,9 +68,11 @@ immutable. Task views support `upcoming`, `past`, and `overdue`. The original
 compatibility aliases.
 
 By default, login asks ManageBac to remember the session for 30 days. The
-library's cookie jar is memory-only, so cookies are never persisted to disk and
-do not survive a process restart. Set `rememberMe: false` to request a regular
-browser-session cookie instead.
+library's cookie jar is memory-only. Call `exportSession()` after login and pass
+that value as `session` to a new client to restore it. A restored client has no
+password: if ManageBac sends it back to the login page, it throws
+`AuthenticationError` instead of posting credentials. Set `rememberMe: false`
+to request a regular browser-session cookie instead.
 
 ```js
 for (const task of homework) {

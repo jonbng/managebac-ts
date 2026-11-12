@@ -7,7 +7,7 @@ import {
 } from "../errors.js";
 import { assertSameOrigin } from "./url.js";
 import { RateLimiter } from "./rate-limiter.js";
-import type { FetchImplementation, RetryOptions } from "../types.js";
+import type { FetchImplementation, RetryOptions, SerializedCookieJar } from "../types.js";
 import type { EmitEvent } from "./observability.js";
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -21,6 +21,7 @@ interface HttpSessionOptions {
   retry?: false | RetryOptions;
   rateLimiter: RateLimiter;
   emit: EmitEvent;
+  session?: SerializedCookieJar;
 }
 
 function retryDelay(response: Response, attempt: number, baseDelayMs: number, maxDelayMs: number): number {
@@ -74,10 +75,14 @@ function transportError(cause: unknown, context: RequestContext): NetworkError |
   return new NetworkError(`Request to ${new URL(context.url).pathname} failed.`, details);
 }
 
+type CookieJarJson = CookieJar & {
+  serialize(): Promise<SerializedCookieJar>;
+};
+
 export class HttpSession {
   readonly #baseUrl: string;
   readonly #fetch: FetchImplementation;
-  readonly #jar = new CookieJar();
+  #jar: CookieJar = new CookieJar();
   readonly #timeoutMs: number;
   readonly #userAgent: string;
   readonly #maxRetries: number;
@@ -87,6 +92,7 @@ export class HttpSession {
   readonly #rateLimiter: RateLimiter;
   readonly #emit: EmitEvent;
   readonly #responseContexts = new WeakMap<Response, RequestContext>();
+  readonly #ready: Promise<void>;
   #nextRequestId = 1;
 
   constructor(options: HttpSessionOptions) {
@@ -105,6 +111,27 @@ export class HttpSession {
       : options.retry?.statuses ?? DEFAULT_RETRYABLE_STATUSES);
     this.#rateLimiter = options.rateLimiter;
     this.#emit = options.emit;
+    this.#ready = options.session ? this.#loadSession(options.session) : Promise.resolve();
+  }
+
+  async exportSession(): Promise<SerializedCookieJar> {
+    await this.#ready;
+    const serialized = await (this.#jar as CookieJarJson).serialize();
+    if (!serialized || !Array.isArray((serialized as { cookies?: unknown }).cookies)) {
+      throw new UnexpectedResponseError("The in-memory session cookie jar could not be serialized.");
+    }
+    return serialized as SerializedCookieJar;
+  }
+
+  async #loadSession(serialized: SerializedCookieJar): Promise<void> {
+    try {
+      const deserialize = (CookieJar as unknown as {
+        deserialize(value: SerializedCookieJar): Promise<CookieJar>;
+      }).deserialize;
+      this.#jar = await deserialize(serialized);
+    } catch (cause) {
+      throw new UnexpectedResponseError("The stored ManageBac session could not be restored.", { cause });
+    }
   }
 
   async readText(response: Response): Promise<string> {
@@ -118,6 +145,7 @@ export class HttpSession {
   }
 
   async request(path: string | URL, init: RequestInit = {}): Promise<Response> {
+    await this.#ready;
     const {
       body: _initialBody,
       headers: _initialHeaders,

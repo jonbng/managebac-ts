@@ -126,6 +126,65 @@ test("joins task deadlines from authoritative calendar events", async () => {
   expect(task?.due.precision).toBe("date-time");
 });
 
+test("restores an exported session without posting the password", async () => {
+  const fetch: FetchImplementation = async (input, init = {}) => {
+    const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input);
+    if (url.pathname === "/login") {
+      return response('<form action="/sessions"><input name="authenticity_token" value="token"></form>', {
+        url: url.href,
+        headers: { "set-cookie": "session=first; Path=/; Secure; HttpOnly" },
+      });
+    }
+    if (url.pathname === "/sessions") {
+      return response("", {
+        status: 302,
+        url: url.href,
+        headers: { location: "/student/calendar", "set-cookie": "session=authenticated; Path=/; Secure; HttpOnly" },
+      });
+    }
+    return response(emptyTasksPage, { url: url.href });
+  };
+  const signedIn = new ManageBacClient({
+    domain: "school.managebac.com",
+    username: "student",
+    password: "password",
+    fetch,
+  });
+  await signedIn.login();
+  const session = await signedIn.exportSession();
+
+  let posted = false;
+  const restored = new ManageBacClient({
+    domain: "school.managebac.com",
+    session,
+    fetch: async (input, init = {}) => {
+      const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input);
+      if (url.pathname === "/sessions" || url.pathname === "/login") posted = true;
+      expect(new Headers(init.headers).get("cookie")).toContain("session=authenticated");
+      return response(emptyTasksPage, { url: url.href });
+    },
+  });
+  expect(await restored.tasks.listUpcoming()).toEqual([]);
+  expect(posted).toBe(false);
+});
+
+test("a restored session does not re-post credentials when ManageBac asks for login", async () => {
+  const loginPage = '<form action="/sessions"><input name="authenticity_token" value="token"></form>';
+  let posted = false;
+  const client = new ManageBacClient({
+    domain: "school.managebac.com",
+    session: { cookies: [] },
+    fetch: async (input, init = {}) => {
+      const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input);
+      if (url.pathname === "/sessions") posted = true;
+      if (init.method === "POST") posted = true;
+      return response(loginPage, { url: "https://school.managebac.com/login" });
+    },
+  });
+  await expect(client.tasks.listUpcoming()).rejects.toBeInstanceOf(AuthenticationError);
+  expect(posted).toBe(false);
+});
+
 test("can opt out of ManageBac's persistent session cookie", async () => {
   const submission: { rememberMe: string | null } = { rememberMe: null };
   const fetch: FetchImplementation = async (input, init = {}) => {

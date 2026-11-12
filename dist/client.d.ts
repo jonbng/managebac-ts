@@ -1,4 +1,4 @@
-import type { ClassOperations, CacheOperations, CalendarOperations, CurrentUserOperations, CollectionSnapshot, Homework, HomeworkOperations, ManageBacClientOptions, RequestOptions, TaskOperations } from "./types.js";
+import type { ClassOperations, CacheOperations, CalendarOperations, CurrentUserOperations, CollectionSnapshot, Homework, HomeworkOperations, ManageBacClientOptions, RequestOptions, SerializedCookieJar, TaskOperations } from "./types.js";
 export declare class ManageBacClient {
     #private;
     readonly homework: HomeworkOperations;
@@ -10,6 +10,7 @@ export declare class ManageBacClient {
     constructor(options: ManageBacClientOptions);
     get domain(): string;
     get authenticated(): boolean;
+    exportSession(): Promise<SerializedCookieJar>;
     login(options?: RequestOptions & {
         force?: boolean;
     }): Promise<void>;

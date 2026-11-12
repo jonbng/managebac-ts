@@ -53,6 +53,7 @@ import type {
   ManageBacClass,
   ManageBacClientOptions,
   RequestOptions,
+  SerializedCookieJar,
   TaskOperations,
   TaskListOptions,
   TaskView,
@@ -91,6 +92,8 @@ const deepFreeze = <Value>(value: Value): Value => {
 const errorName = (error: unknown): string => error instanceof Error ? error.name : "UnknownError";
 const isObject = (value: unknown): boolean =>
   value !== null && typeof value === "object" && !Array.isArray(value);
+const isSerializedSession = (value: unknown): value is SerializedCookieJar =>
+  isObject(value) && Array.isArray((value as { cookies?: unknown }).cookies);
 function validateRequestOptions(options: unknown): asserts options is RequestOptions {
   if (!isObject(options)) throw new ConfigurationError("request options must be an object.");
   const input = options as Record<string, unknown>;
@@ -150,6 +153,7 @@ export class ManageBacClient {
   readonly #baseUrl: string;
   readonly #username: string;
   readonly #password: string;
+  readonly #canLogin: boolean;
   readonly #rememberMe: boolean;
   readonly #session: HttpSession;
   readonly #now: () => Date;
@@ -177,11 +181,18 @@ export class ManageBacClient {
 
   constructor(options: ManageBacClientOptions) {
     if (!options || typeof options !== "object") throw new ConfigurationError("Client options are required.");
-    if (typeof options.username !== "string" || options.username.trim() === "") {
+    const hasSession = options.session !== undefined;
+    if (hasSession && !isSerializedSession(options.session)) {
+      throw new ConfigurationError("session must be a serialized cookie jar.");
+    }
+    if (options.username !== undefined && (typeof options.username !== "string" || options.username.trim() === "")) {
       throw new ConfigurationError("username must be a non-empty string.");
     }
-    if (typeof options.password !== "string" || options.password === "") {
+    if (options.password !== undefined && (typeof options.password !== "string" || options.password === "")) {
       throw new ConfigurationError("password must be a non-empty string.");
+    }
+    if (!hasSession && (options.username === undefined || options.password === undefined)) {
+      throw new ConfigurationError("username and password are required unless session is provided.");
     }
     if (options.rememberMe !== undefined && typeof options.rememberMe !== "boolean") {
       throw new ConfigurationError("rememberMe must be a boolean.");
@@ -261,9 +272,11 @@ export class ManageBacClient {
     }
 
     this.#baseUrl = normalizeDomain(options.domain, options.allowInsecure);
-    this.#username = options.username;
-    this.#password = options.password;
+    this.#username = options.username ?? "";
+    this.#password = options.password ?? "";
+    this.#canLogin = options.password !== undefined;
     this.#rememberMe = options.rememberMe ?? true;
+    if (hasSession) this.#authenticated = true;
     this.#now = options.now ?? (() => new Date());
     this.#emit = createEmitter(options.observer);
     this.#cacheTtlMs = options.cache ? options.cache.ttlMs : 0;
@@ -284,6 +297,7 @@ export class ManageBacClient {
       ...(retry === undefined ? {} : { retry }),
       rateLimiter: new RateLimiter(maxConcurrent, minIntervalMs),
       emit: this.#emit,
+      ...(options.session === undefined ? {} : { session: options.session }),
     });
 
     const taskOperations: TaskOperations = Object.freeze({
@@ -329,14 +343,23 @@ export class ManageBacClient {
   get domain(): string { return this.#baseUrl; }
   get authenticated(): boolean { return this.#authenticated; }
 
+  async exportSession(): Promise<SerializedCookieJar> {
+    return this.#session.exportSession();
+  }
+
   async login(options: RequestOptions & { force?: boolean } = {}): Promise<void> {
     validateRequestOptions(options);
     if (options.force !== undefined && typeof options.force !== "boolean") {
       throw new ConfigurationError("force must be a boolean.");
     }
     const { force = false, signal } = options;
-    if (this.#loginPromise && !signal) return this.#loginPromise;
+    if (this.#loginPromise && !signal && this.#canLogin) return this.#loginPromise;
     if (this.#authenticated && !force) return;
+    if (!this.#canLogin) {
+      throw new AuthenticationError("ManageBac session expired. Sign in again.", {
+        context: { operation: "login", resource: "login" },
+      });
+    }
     const attempt = this.#performLogin(signal);
     if (!signal) this.#loginPromise = attempt;
     try {

@@ -287,10 +287,26 @@ export interface CalendarOperations {
 
 export type FetchImplementation = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+export interface SerializedCookieJar {
+  readonly version?: string;
+  readonly storeType?: string | null;
+  readonly rejectPublicSuffixes?: boolean;
+  readonly cookies: readonly Record<string, unknown>[];
+}
+
 export interface ManageBacClientOptions {
   domain: string;
-  username: string;
-  password: string;
+  /**
+   * Required unless `session` is set. A restored session does not need it.
+   */
+  username?: string;
+  /**
+   * Required unless `session` is set. Never persisted by this library.
+   * Omit it when restoring a session so an expired jar cannot be silently re-posted.
+   */
+  password?: string;
+  /** A jar previously returned by `ManageBacClient.exportSession()`. */
+  session?: SerializedCookieJar;
   /** Ask ManageBac for a persistent 30-day session cookie. Defaults to `true`. */
   rememberMe?: boolean;
   timeoutMs?: number;
